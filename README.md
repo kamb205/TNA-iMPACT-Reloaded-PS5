@@ -113,7 +113,7 @@ Copy the new release's `PPSA94007` folder over the old one. Your game files, sav
 
 ## Building from source
 
-You need your own `default.xex`, the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) (codegen) and its PS5 runtime branch (elripalda's `rexglue-ps5-svr2008`), the PS5 Payload SDK, and Nazky's ps5-plume-triangle (RADV link recipe, CRT, signer). The SDK changes this port needs are in [`patches/`](patches).
+You need your own `default.xex`, the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) (codegen) and its PS5 runtime branch (elripalda's `rexglue-ps5-svr2008`), the PS5 Payload SDK, and Nazky's ps5-plume-triangle (RADV link recipe, CRT, signer). The SDK changes this port needs are in [`patches/rexglue-ps5-all.patch`](patches/rexglue-ps5-all.patch): clone [elripalda/svr2011-ps5](https://github.com/elripalda/svr2011-ps5) branch `rexglue-ps5-svr2008`, check out `c09db52`, then `git apply patches/rexglue-ps5-all.patch`.
 
 1. Put your own disc's `default.xex` in `private/extract/` (`tools/xdvdfs.py` reads it from your `.iso`) and run
    `rexglue codegen tnaimpact_manifest.toml`, then the post-codegen steps:

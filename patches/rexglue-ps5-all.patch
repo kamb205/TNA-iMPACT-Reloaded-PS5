@@ -1,0 +1,308 @@
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 92bd3c9..f15dea9 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -12,6 +12,8 @@
+ #include <algorithm>
+ #include <array>
+ #include <cstdint>
++#include <cstdio>
++#include <cstdlib>
+ #include <cstring>
+ #include <iterator>
+ #include <mutex>
+@@ -70,6 +72,10 @@ REXCVAR_DEFINE_BOOL(vulkan_dynamic_rendering, true, "GPU/Vulkan",
+                     "device (falls back to render passes otherwise)")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++// [tna] The game's frame count (guest swaps), for the port's FPS counter and log.
++static uint64_t g_tna_guest_swaps = 0;
++extern "C" uint64_t tna_guest_swap_count() { return __atomic_load_n(&g_tna_guest_swaps, __ATOMIC_RELAXED); }
++
+ namespace rex::graphics::vulkan {
+ 
+ namespace {
+@@ -2476,7 +2482,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+ 
+   // [svr2011] Where the shown frames came from, now and then (a phone showed
+   // only black while the native renderer drew: this tells which side stops).
+-  static uint64_t swaps = 0, swaps_external = 0, swaps_failed = 0;
++  static uint64_t swaps_external = 0, swaps_failed = 0;
++  uint64_t& swaps = g_tna_guest_swaps;
+   const bool external_swap = swap_texture_view == VkImageView(external_frame.vk_image_view) &&
+                              external_frame.vk_image_view;
+   const bool refreshed = presenter->RefreshGuestOutput(
+@@ -3002,6 +3009,44 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+                 swaps_external, swaps_failed, guest_output_width, guest_output_height);
+   }
+ 
++  // [tna] Frame dump for lighting measurements (T014). Set TNA_DUMP_FRAME=<dir>
++  // and TNA_DUMP_EVERY=<n> to write every n-th presented guest frame as raw
++  // R8G8B8X8 (plus a one-line size.txt) for offline luminance analysis.
++  {
++    static const std::string kDumpDir = [] {
++      const char* p = std::getenv("TNA_DUMP_FRAME");
++      return p ? std::string(p) : std::string();
++    }();
++    static const uint64_t kDumpEvery = [] {
++      const char* p = std::getenv("TNA_DUMP_EVERY");
++      if (!p || !*p) return uint64_t(0);
++      return static_cast<uint64_t>(std::strtoull(p, nullptr, 10));
++    }();
++    if (!kDumpDir.empty() && kDumpEvery != 0 && (swaps % kDumpEvery) == 0) {
++      rex::ui::RawImage image;
++      if (presenter->CaptureGuestOutput(image)) {
++        const std::string path = kDumpDir + "/frame_" + std::to_string(swaps) + ".rgba";
++        FILE* file = std::fopen(path.c_str(), "wb");
++        if (file) {
++          std::fwrite(image.data.data(), 1, image.data.size(), file);
++          std::fclose(file);
++          REXLOG_INFO("[tna] frame dump: {}x{} stride={} bytes={} -> {}", image.width,
++                      image.height, image.stride, image.data.size(), path);
++          const std::string size_path = kDumpDir + "/size.txt";
++          FILE* size_file = std::fopen(size_path.c_str(), "wb");
++          if (size_file) {
++            std::fprintf(size_file, "%u %u %zu\n", image.width, image.height, image.stride);
++            std::fclose(size_file);
++          }
++        } else {
++          REXLOG_WARN("[tna] frame dump: cannot open {}", path);
++        }
++      } else {
++        REXLOG_WARN("[tna] frame dump: CaptureGuestOutput failed at swap {}", swaps);
++      }
++    }
++  }
++
+   // End the frame even if did not present for any reason (the image refresher
+   // was not called), to prevent leaking per-frame resources.
+   EndSubmission(true);
+diff --git a/src/input/ps5/ps5_input_driver.cpp b/src/input/ps5/ps5_input_driver.cpp
+index 273b138..7722a8c 100644
+--- a/src/input/ps5/ps5_input_driver.cpp
++++ b/src/input/ps5/ps5_input_driver.cpp
+@@ -11,8 +11,17 @@
+ #include <chrono>
+ #include <cstring>
+ 
++#include <rex/cvar.h>
+ #include <rex/logging.h>
+ 
++// [tna] Controller feel, from the hub's settings (UserData/settings.toml).
++REXCVAR_DEFINE_INT32(ps5_vibration, 1, "Input",
++                     "DualSense vibration: 0 off, 1 light (default), 2 medium, 3 full");
++REXCVAR_DEFINE_BOOL(ps5_lightbar, true, "Input",
++                    "Colour the DualSense light bar (game colour) instead of the system's");
++REXCVAR_DEFINE_UINT32(ps5_lightbar_rgb, 0xD4A017, "Input",
++                      "Light bar colour as 0xRRGGBB (default: TNA gold)");
++
+ extern "C" {
+ int sceUserServiceInitialize(void* params);
+ int sceUserServiceGetForegroundUser(int32_t* user_id);
+@@ -31,6 +40,14 @@ struct ScePadVibrationParam {
+   uint8_t small_motor;
+ };
+ int scePadSetVibration(int32_t handle, const ScePadVibrationParam* param);
++int scePadSetVibrationMode(int32_t handle, int32_t mode);
++struct ScePadLightBarParam {
++  uint8_t r;
++  uint8_t g;
++  uint8_t b;
++  uint8_t reserved;
++};
++int scePadSetLightBar(int32_t handle, const ScePadLightBarParam* param);
+ }
+ 
+ namespace rex::input::ps5 {
+@@ -130,6 +147,16 @@ void Ps5InputDriver::RefreshPads() {
+       pad.id = DeviceId(++next_device_id_);
+       pad.packet_number = 0;
+       REXLOG_INFO("PS5 input: DualSense for user {:#x} (handle {})", uint32_t(user), handle);
++      // [tna] The DualSense ignores scePadSetVibration until it is in compatible
++      // (motor) vibration mode, 2 (as UnleashedRecomp-Prospero does).
++      int vm = scePadSetVibrationMode(handle, 2);
++      REXLOG_INFO("PS5 input: vibration mode 2 -> {:#x} (strength {})", uint32_t(vm),
++                  int(REXCVAR_GET(ps5_vibration)));
++      if (REXCVAR_GET(ps5_lightbar)) {
++        const uint32_t rgb = REXCVAR_GET(ps5_lightbar_rgb);
++        ScePadLightBarParam light{uint8_t(rgb >> 16), uint8_t(rgb >> 8), uint8_t(rgb), 0};
++        scePadSetLightBar(handle, &light);
++      }
+       break;
+     }
+   }
+@@ -183,6 +210,14 @@ X_RESULT Ps5InputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
+   if (b & kPadSquare) buttons |= X_INPUT_GAMEPAD_X;
+   if (b & kPadTriangle) buttons |= X_INPUT_GAMEPAD_Y;
+ 
++  // [tna] One line proves the shoulder reaches the guest (RB = reversal in
++  // TNA iMPACT!): raw ScePadData bit -> Xbox 360 button bit.
++  static bool logged_r1 = false;
++  if (!logged_r1 && (data.buttons & kPadR1)) {
++    logged_r1 = true;
++    REXLOG_INFO("PS5 input: first R1: raw {:#x} -> xbox buttons {:#x}", data.buttons, buttons);
++  }
++
+   const bool active = is_active();
+   X_INPUT_GAMEPAD& gp = out_state->gamepad;
+   gp.buttons = buttons;
+@@ -226,12 +261,36 @@ X_RESULT Ps5InputDriver::GetDeviceCapabilities(DeviceId id, uint32_t flags,
+ X_RESULT Ps5InputDriver::SetDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration) {
+   std::lock_guard<std::mutex> lock(mutex_);
+   Pad* pad = FindPad(id);
+-  if (!pad) return X_ERROR_DEVICE_NOT_CONNECTED;
++  if (!pad) {
++    static bool logged_missing = false;
++    if (!logged_missing) {
++      logged_missing = true;
++      REXLOG_WARN("PS5 input: vibration for unknown pad {:#x}", uint64_t(id));
++    }
++    return X_ERROR_DEVICE_NOT_CONNECTED;
++  }
+   if (vibration) {
++    const int mode = REXCVAR_GET(ps5_vibration);
++    const uint32_t scale = mode <= 0 ? 0 : mode == 1 ? 40 : mode == 2 ? 70 : 100;
++    // [tna] What the guest asked for, before the hub's strength setting: a
++    // missing first-rumble line can then be blamed on the guest or the scale.
++    static bool logged_request = false;
++    if (!logged_request && (uint16_t(vibration->left_motor_speed) ||
++                            uint16_t(vibration->right_motor_speed))) {
++      logged_request = true;
++      REXLOG_INFO("PS5 input: rumble requested {}/{} (mode {}, scale {}%)",
++                  uint32_t(uint16_t(vibration->left_motor_speed)),
++                  uint32_t(uint16_t(vibration->right_motor_speed)), mode, scale);
++    }
+     ScePadVibrationParam param;
+-    param.large_motor = uint8_t(uint16_t(vibration->left_motor_speed) >> 8);
+-    param.small_motor = uint8_t(uint16_t(vibration->right_motor_speed) >> 8);
+-    scePadSetVibration(pad->handle, &param);
++    param.large_motor = uint8_t((uint32_t(uint16_t(vibration->left_motor_speed) >> 8) * scale) / 100);
++    param.small_motor = uint8_t((uint32_t(uint16_t(vibration->right_motor_speed) >> 8) * scale) / 100);
++    int rc = scePadSetVibration(pad->handle, &param);
++    static bool logged = false;
++    if (!logged && (param.large_motor || param.small_motor)) {
++      logged = true;
++      REXLOG_INFO("PS5 input: first rumble {}/{} -> {:#x}", param.large_motor, param.small_motor, uint32_t(rc));
++    }
+   }
+   return X_ERROR_SUCCESS;
+ }
+diff --git a/src/kernel/xam/xam_input.cpp b/src/kernel/xam/xam_input.cpp
+index 57ccbdd..08cf627 100644
+--- a/src/kernel/xam/xam_input.cpp
++++ b/src/kernel/xam/xam_input.cpp
+@@ -140,7 +140,37 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION>
+ 
+   (void)unk;  // Unused in this implementation
+   auto* is = input_system();
+-  return is->SetState(actual_user_index, vibration);
++  X_RESULT result = is->SetState(actual_user_index, vibration);
++
++#if REX_PLATFORM_PS5
++  const uint16_t left_motor = uint16_t(vibration->left_motor_speed);
++  const uint16_t right_motor = uint16_t(vibration->right_motor_speed);
++  if ((left_motor || right_motor) && result == X_ERROR_DEVICE_NOT_CONNECTED &&
++      actual_user_index != 0) {
++    // [tna] The DualSense is assigned to guest user 0. A title that asks for
++    // rumble on another slot (or passes a bogus index) still expects the pad
++    // in hand to buzz: retry user 0 rather than dropping the call.
++    X_RESULT fallback = is->SetState(0, vibration);
++    static bool logged_fallback = false;
++    if (!logged_fallback) {
++      logged_fallback = true;
++      REXKRNL_INFO("[XAM] XamInputSetState: user {} has no pad, user 0 -> {:#x}",
++                   uint32_t(actual_user_index), uint32_t(fallback));
++    }
++    if (fallback == X_ERROR_SUCCESS) {
++      result = fallback;
++    }
++  }
++  static bool logged_rumble = false;
++  if (!logged_rumble && (left_motor || right_motor)) {
++    logged_rumble = true;
++    REXKRNL_INFO("[XAM] XamInputSetState: first rumble user {} (actual {}), motors {}/{} -> {:#x}",
++                 uint32_t(user_index), uint32_t(actual_user_index), uint32_t(left_motor),
++                 uint32_t(right_motor), uint32_t(result));
++  }
++#endif
++
++  return result;
+ }
+ 
+ // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
+diff --git a/src/kernel/xam/xam_ui.cpp b/src/kernel/xam/xam_ui.cpp
+index b03c46e..2e8ea7d 100644
+--- a/src/kernel/xam/xam_ui.cpp
++++ b/src/kernel/xam/xam_ui.cpp
+@@ -18,6 +18,7 @@
+ #include <imgui.h>
+ 
+ #include <algorithm>
++#include <cctype>
+ #include <chrono>
+ #include <cmath>
+ #include <cstdio>
+@@ -612,6 +613,18 @@ class MessageBoxDialog : public XamDialog {
+   uint32_t chosen_button() const { return chosen_button_; }
+ 
+   void OnDraw(ImGuiIO& io) override {
++    // [ps5 port] The box is laid out for 1080p: scale fonts, padding and so
++    // the buttons to the display (4K is 2x, 1440p 1.33x), as the hub does.
++    const float s = std::max(1.0f, io.DisplaySize.y / 1080.0f);
++    const ImGuiStyle& style = ImGui::GetStyle();
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
++                        ImVec2(style.WindowPadding.x * s, style.WindowPadding.y * s));
++    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
++                        ImVec2(style.FramePadding.x * s, style.FramePadding.y * s));
++    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
++                        ImVec2(style.ItemSpacing.x * s, style.ItemSpacing.y * s));
++    const float font_size_base = style.FontSizeBase;
++
+     bool first_draw = false;
+     if (!has_opened_) {
+       ImGui::OpenPopup(title_.c_str());
+@@ -619,6 +632,7 @@ class MessageBoxDialog : public XamDialog {
+       first_draw = true;
+     }
+     if (ImGui::BeginPopupModal(title_.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
++      if (s != 1.0f) ImGui::PushFont(nullptr, font_size_base * s);
+       if (description_.size()) {
+         ImGui::Text("%s", description_.c_str());
+       }
+@@ -649,10 +663,12 @@ class MessageBoxDialog : public XamDialog {
+       ImGui::NewLine();
+       ImGui::TextDisabled("D-pad: choose    Cross: OK");
+       ImGui::Spacing();
++      if (s != 1.0f) ImGui::PopFont();
+       ImGui::EndPopup();
+     } else {
+       Close();
+     }
++    ImGui::PopStyleVar(3);
+   }
+ 
+  private:
+@@ -687,6 +703,23 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
+                                    REX_KERNEL_MEMORY()->TranslateVirtual(text_ptr.guest_address())))
+                              : "";
+ 
++#if REX_PLATFORM_PS5
++  // [tna] Xbox LIVE sign-in is not available on PS5. The game (or the XAM
++  // sign-in flow) shows "You are not signed in to Xbox Live" / "You must be
++  // signed into Xbox LIVE to continue."; give it one clear PS5 message. The
++  // button flow is untouched: OK still closes the box.
++  {
++    std::string lower;
++    lower.reserve(text_str.size());
++    for (char c : text_str)
++      lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
++    if (lower.find("xbox live") != std::string::npos &&
++        lower.find("sign") != std::string::npos) {
++      text_str = "Online play isn't available on PS5.";
++    }
++  }
++#endif
++
+   std::vector<std::string> buttons;
+   for (uint32_t i = 0; i < button_count; ++i) {
+     uint32_t button_ptr = button_ptrs[i];
