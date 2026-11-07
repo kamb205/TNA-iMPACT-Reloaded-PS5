@@ -1,0 +1,26 @@
+name: Bug report
+description: Something doesn't work in TNA iMPACT! Reloaded on PS5
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What were you doing, and what went wrong? Photos of the TV help.
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: PS5 firmware and jailbreak
+      placeholder: e.g. 13.60, etaHEN + ShadowMount+
+  - type: input
+    id: version
+    attributes:
+      label: Port version
+      placeholder: e.g. v1.0
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Attach the newest file from /data/homebrew/PPSA94007/logs/ (and UserData/crashes/ if there is one).
