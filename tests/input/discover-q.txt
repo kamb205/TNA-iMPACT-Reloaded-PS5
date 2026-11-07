@@ -1,0 +1,5 @@
+# Probe: enter exhibition once, then sit still while sampling.
+20:START
+100:A
+108:START
+118:A

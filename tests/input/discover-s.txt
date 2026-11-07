@@ -1,0 +1,16 @@
+# Probe: reach controller select, then try Start/A/D-pad slot actions.
+20:START
+100:A
+108:START
+120:A
+160:A
+180:START
+195:A
+210:START
+225:A
+240:DOWN
+255:A
+270:RIGHT
+285:A
+300:START
+315:A

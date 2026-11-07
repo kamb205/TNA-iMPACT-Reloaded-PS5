@@ -1,0 +1,12 @@
+# Probe: enter menu, wait for it to become interactive, then Exhibition ->
+# Standard Match, and probe the next screen.
+20:START
+100:A
+108:START
+130:A
+140:A
+150:A
+160:START
+165:A
+175:A
+185:A

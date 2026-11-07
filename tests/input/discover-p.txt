@@ -1,0 +1,17 @@
+# Probe: exhibition, then controller-slot navigation (Start, Right, A).
+20:START
+100:A
+108:START
+118:A
+132:A
+146:START
+152:RIGHT
+158:A
+166:A
+174:A
+182:START
+188:A
+196:A
+204:A
+212:A
+220:A

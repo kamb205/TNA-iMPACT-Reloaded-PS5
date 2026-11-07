@@ -1,0 +1,10 @@
+# Discovery: skip the startup movies with Start/A, then probe the front end.
+5:START
+8:A
+15:START
+18:A
+30:START
+33:A
+40:A
+45:DOWN
+50:A

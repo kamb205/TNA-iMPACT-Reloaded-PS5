@@ -1,0 +1,4 @@
+# Discovery: skip both startup movies, then press Start at the attract loop.
+5:START
+20:START
+30:START

@@ -1,0 +1,25 @@
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 92bd3c9..7b5df6b 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -70,6 +70,10 @@ REXCVAR_DEFINE_BOOL(vulkan_dynamic_rendering, true, "GPU/Vulkan",
+                     "device (falls back to render passes otherwise)")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++// [tna] The game's frame count (guest swaps), for the port's FPS counter and log.
++static uint64_t g_tna_guest_swaps = 0;
++extern "C" uint64_t tna_guest_swap_count() { return __atomic_load_n(&g_tna_guest_swaps, __ATOMIC_RELAXED); }
++
+ namespace rex::graphics::vulkan {
+ 
+ namespace {
+@@ -2476,7 +2480,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+ 
+   // [svr2011] Where the shown frames came from, now and then (a phone showed
+   // only black while the native renderer drew: this tells which side stops).
+-  static uint64_t swaps = 0, swaps_external = 0, swaps_failed = 0;
++  static uint64_t swaps_external = 0, swaps_failed = 0;
++  uint64_t& swaps = g_tna_guest_swaps;
+   const bool external_swap = swap_texture_view == VkImageView(external_frame.vk_image_view) &&
+                              external_frame.vk_image_view;
+   const bool refreshed = presenter->RefreshGuestOutput(

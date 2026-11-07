@@ -1,0 +1,28 @@
+# Copyrighted game data and anything derived from it never enters Git.
+private/
+assets/
+gamedata/
+generated/default/
+*.iso
+*.xex
+*.bik
+*.arc
+# Art made from your own disc (ps5/art/make_art.py) and personal hub art/music
+ps5/art/local/
+# Tooling and build output
+.tools/
+build/
+out/
+ps5/out/
+dist/
+__pycache__/
+
+# Personal / internal (never public)
+CLAUDE.md
+.claude/
+docs/tasks/
+docs/reports/
+docs/STATUS.md
+tools/mega.sh
+ps5/generated/
+generated/

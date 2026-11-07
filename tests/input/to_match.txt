@@ -1,0 +1,43 @@
+# TNA iMPACT! - scripted path from the attract loop into a playable match.
+#
+# Times are seconds after the game first polls the pad. The opening movie and
+# FMC01 run first; the attract loop starts around 205 s. The first A stops the
+# attract movie and START then opens the main menu. The menu takes ~20 s to
+# become interactive, so the menu presses are spaced out.
+#
+# Menu path (confirmed in run-045/047/050):
+#   attract -> START -> EXHIBITION (default) -> STANDARD MATCH (default)
+#   -> controller select (P2 = AI) -> player select (Samoa Joe vs AJ Styles)
+#   -> arena select (Orlando, default).
+230:A            # stop the attract movie
+245:START        # main menu
+265:A            # EXHIBITION
+280:A            # STANDARD MATCH (default match type)
+295:DOWN         # controller select: focus player 2
+302:RIGHT        # ... set player 2 to AI
+309:RIGHT
+316:A            # confirm controllers
+328:DOWN         # player select: player 1 -> Samoa Joe
+336:A            # confirm player 1
+344:A            # player 2 stays AJ Styles
+356:A            # arena select: Orlando (default) -> load the match
+
+# In-match input: movement and attacks. The ring entrances take ~195 s after
+# the arena confirm, so the match is live by ~550 s; leave 3 quiet minutes,
+# then drive player 1 for 2 minutes (750-870 s).
+750:LS_RIGHT*10@0.5
+758:A*5@0.5
+766:LS_UP*6@0.5
+774:B*5@0.5
+782:LS_LEFT*10@0.5
+790:Y*4@0.6
+798:LS_DOWN*6@0.5
+806:A*5@0.5
+814:X*4@0.6
+822:LS_RIGHT*8@0.5
+830:A*6@0.5
+838:LS_DOWN*8@0.5
+846:B*5@0.5
+854:LS_LEFT*8@0.5
+862:A*5@0.5
+870:LS_UP*8@0.5

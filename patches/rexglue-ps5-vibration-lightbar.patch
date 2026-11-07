@@ -1,0 +1,110 @@
+diff --git a/src/input/ps5/ps5_input_driver.cpp b/src/input/ps5/ps5_input_driver.cpp
+index 273b138..7722a8c 100644
+--- a/src/input/ps5/ps5_input_driver.cpp
++++ b/src/input/ps5/ps5_input_driver.cpp
+@@ -11,8 +11,17 @@
+ #include <chrono>
+ #include <cstring>
+ 
++#include <rex/cvar.h>
+ #include <rex/logging.h>
+ 
++// [tna] Controller feel, from the hub's settings (UserData/settings.toml).
++REXCVAR_DEFINE_INT32(ps5_vibration, 1, "Input",
++                     "DualSense vibration: 0 off, 1 light (default), 2 medium, 3 full");
++REXCVAR_DEFINE_BOOL(ps5_lightbar, true, "Input",
++                    "Colour the DualSense light bar (game colour) instead of the system's");
++REXCVAR_DEFINE_UINT32(ps5_lightbar_rgb, 0xD4A017, "Input",
++                      "Light bar colour as 0xRRGGBB (default: TNA gold)");
++
+ extern "C" {
+ int sceUserServiceInitialize(void* params);
+ int sceUserServiceGetForegroundUser(int32_t* user_id);
+@@ -31,6 +40,14 @@ struct ScePadVibrationParam {
+   uint8_t small_motor;
+ };
+ int scePadSetVibration(int32_t handle, const ScePadVibrationParam* param);
++int scePadSetVibrationMode(int32_t handle, int32_t mode);
++struct ScePadLightBarParam {
++  uint8_t r;
++  uint8_t g;
++  uint8_t b;
++  uint8_t reserved;
++};
++int scePadSetLightBar(int32_t handle, const ScePadLightBarParam* param);
+ }
+ 
+ namespace rex::input::ps5 {
+@@ -130,6 +147,16 @@ void Ps5InputDriver::RefreshPads() {
+       pad.id = DeviceId(++next_device_id_);
+       pad.packet_number = 0;
+       REXLOG_INFO("PS5 input: DualSense for user {:#x} (handle {})", uint32_t(user), handle);
++      // [tna] The DualSense ignores scePadSetVibration until it is in compatible
++      // (motor) vibration mode, 2 (as UnleashedRecomp-Prospero does).
++      int vm = scePadSetVibrationMode(handle, 2);
++      REXLOG_INFO("PS5 input: vibration mode 2 -> {:#x} (strength {})", uint32_t(vm),
++                  int(REXCVAR_GET(ps5_vibration)));
++      if (REXCVAR_GET(ps5_lightbar)) {
++        const uint32_t rgb = REXCVAR_GET(ps5_lightbar_rgb);
++        ScePadLightBarParam light{uint8_t(rgb >> 16), uint8_t(rgb >> 8), uint8_t(rgb), 0};
++        scePadSetLightBar(handle, &light);
++      }
+       break;
+     }
+   }
+@@ -183,6 +210,14 @@ X_RESULT Ps5InputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
+   if (b & kPadSquare) buttons |= X_INPUT_GAMEPAD_X;
+   if (b & kPadTriangle) buttons |= X_INPUT_GAMEPAD_Y;
+ 
++  // [tna] One line proves the shoulder reaches the guest (RB = reversal in
++  // TNA iMPACT!): raw ScePadData bit -> Xbox 360 button bit.
++  static bool logged_r1 = false;
++  if (!logged_r1 && (data.buttons & kPadR1)) {
++    logged_r1 = true;
++    REXLOG_INFO("PS5 input: first R1: raw {:#x} -> xbox buttons {:#x}", data.buttons, buttons);
++  }
++
+   const bool active = is_active();
+   X_INPUT_GAMEPAD& gp = out_state->gamepad;
+   gp.buttons = buttons;
+@@ -226,12 +261,36 @@ X_RESULT Ps5InputDriver::GetDeviceCapabilities(DeviceId id, uint32_t flags,
+ X_RESULT Ps5InputDriver::SetDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration) {
+   std::lock_guard<std::mutex> lock(mutex_);
+   Pad* pad = FindPad(id);
+-  if (!pad) return X_ERROR_DEVICE_NOT_CONNECTED;
++  if (!pad) {
++    static bool logged_missing = false;
++    if (!logged_missing) {
++      logged_missing = true;
++      REXLOG_WARN("PS5 input: vibration for unknown pad {:#x}", uint64_t(id));
++    }
++    return X_ERROR_DEVICE_NOT_CONNECTED;
++  }
+   if (vibration) {
++    const int mode = REXCVAR_GET(ps5_vibration);
++    const uint32_t scale = mode <= 0 ? 0 : mode == 1 ? 40 : mode == 2 ? 70 : 100;
++    // [tna] What the guest asked for, before the hub's strength setting: a
++    // missing first-rumble line can then be blamed on the guest or the scale.
++    static bool logged_request = false;
++    if (!logged_request && (uint16_t(vibration->left_motor_speed) ||
++                            uint16_t(vibration->right_motor_speed))) {
++      logged_request = true;
++      REXLOG_INFO("PS5 input: rumble requested {}/{} (mode {}, scale {}%)",
++                  uint32_t(uint16_t(vibration->left_motor_speed)),
++                  uint32_t(uint16_t(vibration->right_motor_speed)), mode, scale);
++    }
+     ScePadVibrationParam param;
+-    param.large_motor = uint8_t(uint16_t(vibration->left_motor_speed) >> 8);
+-    param.small_motor = uint8_t(uint16_t(vibration->right_motor_speed) >> 8);
+-    scePadSetVibration(pad->handle, &param);
++    param.large_motor = uint8_t((uint32_t(uint16_t(vibration->left_motor_speed) >> 8) * scale) / 100);
++    param.small_motor = uint8_t((uint32_t(uint16_t(vibration->right_motor_speed) >> 8) * scale) / 100);
++    int rc = scePadSetVibration(pad->handle, &param);
++    static bool logged = false;
++    if (!logged && (param.large_motor || param.small_motor)) {
++      logged = true;
++      REXLOG_INFO("PS5 input: first rumble {}/{} -> {:#x}", param.large_motor, param.small_motor, uint32_t(rc));
++    }
+   }
+   return X_ERROR_SUCCESS;
+ }

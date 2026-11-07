@@ -1,0 +1,5 @@
+# Probe: select the default main-menu item (Exhibition) and log what reopens.
+20:START
+100:A
+108:START
+115:A

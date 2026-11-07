@@ -1,0 +1,15 @@
+# Probe: full exhibition path, generous delays and Start on controller select.
+20:START
+100:A
+108:START
+118:A
+130:A
+142:A
+154:START
+160:A
+172:A
+178:A
+190:A
+196:A
+208:A
+214:START

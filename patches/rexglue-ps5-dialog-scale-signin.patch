@@ -1,0 +1,76 @@
+diff --git a/src/kernel/xam/xam_ui.cpp b/src/kernel/xam/xam_ui.cpp
+index b03c46e..2e8ea7d 100644
+--- a/src/kernel/xam/xam_ui.cpp
++++ b/src/kernel/xam/xam_ui.cpp
+@@ -18,6 +18,7 @@
+ #include <imgui.h>
+ 
+ #include <algorithm>
++#include <cctype>
+ #include <chrono>
+ #include <cmath>
+ #include <cstdio>
+@@ -612,6 +613,18 @@ class MessageBoxDialog : public XamDialog {
+   uint32_t chosen_button() const { return chosen_button_; }
+ 
+   void OnDraw(ImGuiIO& io) override {
++    // [ps5 port] The box is laid out for 1080p: scale fonts, padding and so
++    // the buttons to the display (4K is 2x, 1440p 1.33x), as the hub does.
++    const float s = std::max(1.0f, io.DisplaySize.y / 1080.0f);
++    const ImGuiStyle& style = ImGui::GetStyle();
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
++                        ImVec2(style.WindowPadding.x * s, style.WindowPadding.y * s));
++    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
++                        ImVec2(style.FramePadding.x * s, style.FramePadding.y * s));
++    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
++                        ImVec2(style.ItemSpacing.x * s, style.ItemSpacing.y * s));
++    const float font_size_base = style.FontSizeBase;
++
+     bool first_draw = false;
+     if (!has_opened_) {
+       ImGui::OpenPopup(title_.c_str());
+@@ -619,6 +632,7 @@ class MessageBoxDialog : public XamDialog {
+       first_draw = true;
+     }
+     if (ImGui::BeginPopupModal(title_.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
++      if (s != 1.0f) ImGui::PushFont(nullptr, font_size_base * s);
+       if (description_.size()) {
+         ImGui::Text("%s", description_.c_str());
+       }
+@@ -649,10 +663,12 @@ class MessageBoxDialog : public XamDialog {
+       ImGui::NewLine();
+       ImGui::TextDisabled("D-pad: choose    Cross: OK");
+       ImGui::Spacing();
++      if (s != 1.0f) ImGui::PopFont();
+       ImGui::EndPopup();
+     } else {
+       Close();
+     }
++    ImGui::PopStyleVar(3);
+   }
+ 
+  private:
+@@ -687,6 +703,23 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
+                                    REX_KERNEL_MEMORY()->TranslateVirtual(text_ptr.guest_address())))
+                              : "";
+ 
++#if REX_PLATFORM_PS5
++  // [tna] Xbox LIVE sign-in is not available on PS5. The game (or the XAM
++  // sign-in flow) shows "You are not signed in to Xbox Live" / "You must be
++  // signed into Xbox LIVE to continue."; give it one clear PS5 message. The
++  // button flow is untouched: OK still closes the box.
++  {
++    std::string lower;
++    lower.reserve(text_str.size());
++    for (char c : text_str)
++      lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
++    if (lower.find("xbox live") != std::string::npos &&
++        lower.find("sign") != std::string::npos) {
++      text_str = "Online play isn't available on PS5.";
++    }
++  }
++#endif
++
+   std::vector<std::string> buttons;
+   for (uint32_t i = 0; i < button_count; ++i) {
+     uint32_t button_ptr = button_ptrs[i];

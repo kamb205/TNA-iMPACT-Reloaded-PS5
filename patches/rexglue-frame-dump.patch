@@ -1,0 +1,58 @@
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 7b5df6b..424633b 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -12,6 +12,8 @@
+ #include <algorithm>
+ #include <array>
+ #include <cstdint>
++#include <cstdio>
++#include <cstdlib>
+ #include <cstring>
+ #include <iterator>
+ #include <mutex>
+@@ -3002,6 +3004,44 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+                 swaps_external, swaps_failed, guest_output_width, guest_output_height);
+   }
+ 
++  // [tna] Frame dump for lighting measurements (T014). Set TNA_DUMP_FRAME=<dir>
++  // and TNA_DUMP_EVERY=<n> to write every n-th presented guest frame as raw
++  // R8G8B8X8 (plus a one-line size.txt) for offline luminance analysis.
++  {
++    static const std::string kDumpDir = [] {
++      const char* p = std::getenv("TNA_DUMP_FRAME");
++      return p ? std::string(p) : std::string();
++    }();
++    static const uint64_t kDumpEvery = [] {
++      const char* p = std::getenv("TNA_DUMP_EVERY");
++      if (!p || !*p) return uint64_t(0);
++      return std::strtoull(p, nullptr, 10);
++    }();
++    if (!kDumpDir.empty() && kDumpEvery != 0 && (swaps % kDumpEvery) == 0) {
++      rex::ui::RawImage image;
++      if (presenter->CaptureGuestOutput(image)) {
++        const std::string path = kDumpDir + "/frame_" + std::to_string(swaps) + ".rgba";
++        FILE* file = std::fopen(path.c_str(), "wb");
++        if (file) {
++          std::fwrite(image.data.data(), 1, image.data.size(), file);
++          std::fclose(file);
++          REXLOG_INFO("[tna] frame dump: {}x{} stride={} bytes={} -> {}", image.width,
++                      image.height, image.stride, image.data.size(), path);
++          const std::string size_path = kDumpDir + "/size.txt";
++          FILE* size_file = std::fopen(size_path.c_str(), "wb");
++          if (size_file) {
++            std::fprintf(size_file, "%u %u %zu\n", image.width, image.height, image.stride);
++            std::fclose(size_file);
++          }
++        } else {
++          REXLOG_WARN("[tna] frame dump: cannot open {}", path);
++        }
++      } else {
++        REXLOG_WARN("[tna] frame dump: CaptureGuestOutput failed at swap {}", swaps);
++      }
++    }
++  }
++
+   // End the frame even if did not present for any reason (the image refresher
+   // was not called), to prevent leaking per-frame resources.
+   EndSubmission(true);

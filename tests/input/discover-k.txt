@@ -1,0 +1,18 @@
+# Probe: main-menu item order and readiness, one DOWN+A per item with B back.
+20:START
+100:A
+108:START
+115:DOWN
+117:A
+123:B
+128:DOWN
+130:A
+136:B
+141:DOWN
+143:A
+149:B
+154:DOWN
+156:A
+162:B
+167:DOWN
+169:A

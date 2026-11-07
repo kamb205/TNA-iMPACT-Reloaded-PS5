@@ -1,0 +1,25 @@
+# TNA iMPACT! - scripted path from the attract loop into Create-a-Player (CAW).
+#
+# Main-menu item order (from fe_mm.xxx localization + ex_*.gfx evidence):
+#   EXHIBITION (default) -> ONLINE -> STORY -> CREATE A PLAYER -> OPTIONS -> TNA EXTRAS
+# so CAW is 3 DOWN presses. The menu becomes interactive ~265 s after the first
+# pad poll; the first DOWN is spaced well past that so none are dropped while
+# the menu animates in. After entering CAW, a few more A presses walk toward
+# the wrestler editor in case the entry screen is a menu.
+#
+# 230:A            # stop the attract movie
+# 245:START        # main menu
+# 282:DOWN         # -> ONLINE
+# 292:DOWN         # -> STORY
+# 302:DOWN         # -> CREATE A PLAYER
+# 312:A            # enter CAW
+# 330:A            # (CAW submenu: create new / continue)
+# 340:A            # (next submenu step)
+230:A
+245:START
+282:DOWN
+292:DOWN
+302:DOWN
+312:A
+330:A
+340:A

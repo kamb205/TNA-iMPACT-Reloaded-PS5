@@ -1,0 +1,14 @@
+# Exhibition path with capabilities hook: Exhibition -> Standard -> A/Start.
+20:START
+100:A
+108:START
+118:A
+132:A
+146:A
+160:START
+166:A
+178:A
+190:A
+202:A
+214:START
+220:A

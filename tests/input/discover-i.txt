@@ -1,0 +1,9 @@
+# Probe: Exhibition (default) -> B back -> DOWN -> A (Online).
+# If fe_online reopens at the last press, A/B and the menu timing work.
+20:START
+100:A
+108:START
+130:A
+138:B
+145:DOWN
+150:A

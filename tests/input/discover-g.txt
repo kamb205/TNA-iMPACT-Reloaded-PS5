@@ -1,0 +1,8 @@
+# Probe: menu entry, then cancel back out (does B work?), then re-enter.
+20:START
+100:A
+108:START
+118:B
+128:START
+136:DOWN
+140:A

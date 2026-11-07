@@ -1,0 +1,12 @@
+# Long probe: one A every 40s after entering Exhibition, plus Start.
+20:START
+100:A
+108:START
+120:A
+160:A
+200:A
+240:A
+280:START
+320:A
+360:A
+400:A

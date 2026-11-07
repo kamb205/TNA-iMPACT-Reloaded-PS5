@@ -1,0 +1,13 @@
+# Discovery: skip the opening movie, let FMC01 finish, enter the front end,
+# then walk the exhibition path (Start on controller select).
+20:START
+100:A
+108:START
+115:A
+123:A
+131:A
+139:START
+145:A
+153:A
+161:A
+169:A

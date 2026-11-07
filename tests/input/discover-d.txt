@@ -1,0 +1,13 @@
+# Discovery: wait out the attract movies, then menu path with Start on the
+# controller-select screen.
+205:START
+212:A
+220:A
+228:START
+232:A
+240:A
+248:A
+256:A
+264:A
+270:A
+276:A

@@ -1,0 +1,24 @@
+# Probe: controller select — focus P2, cycle its option to AI, confirm, continue.
+20:START
+100:A
+108:START
+120:A
+160:A
+175:DOWN
+182:RIGHT
+189:RIGHT
+196:A
+203:DOWN
+210:RIGHT
+217:RIGHT
+224:A
+231:DOWN
+238:A
+245:RIGHT
+252:A
+259:A
+266:START
+273:A
+280:A
+287:A
+294:A

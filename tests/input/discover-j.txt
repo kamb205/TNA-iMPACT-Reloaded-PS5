@@ -1,0 +1,11 @@
+# Probe: Exhibition -> Standard Match -> next screens with A/Start.
+20:START
+100:A
+108:START
+130:A
+140:A
+150:A
+160:START
+170:A
+180:A
+190:A

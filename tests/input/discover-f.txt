@@ -1,0 +1,20 @@
+# Discovery: movie skip, then alternating A/START through exhibition.
+20:START
+100:A
+108:START
+115:A
+123:A
+131:A
+137:START
+141:A
+147:START
+151:A
+157:A
+163:START
+167:A
+173:A
+179:START
+183:A
+189:A
+195:START
+199:A

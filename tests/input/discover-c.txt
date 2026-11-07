@@ -1,0 +1,9 @@
+# Discovery: skip the opening, enter the front end, then accept first items.
+20:START
+30:START
+36:A
+44:A
+52:A
+60:A
+68:A
+76:A

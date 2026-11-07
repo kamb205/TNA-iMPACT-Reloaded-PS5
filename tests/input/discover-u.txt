@@ -1,0 +1,22 @@
+# Probe: known-good path to player select, then select Samoa Joe for both and
+# accept without extra D-pad moves.
+20:START
+100:A
+108:START
+120:A
+160:A
+175:DOWN
+182:RIGHT
+189:RIGHT
+196:A
+203:DOWN
+210:A
+217:DOWN
+224:A
+232:A
+240:A
+248:START
+256:A
+264:A
+272:A
+280:A

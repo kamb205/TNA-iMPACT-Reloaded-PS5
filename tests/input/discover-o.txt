@@ -1,0 +1,19 @@
+# Probe: exhibition, then alternate A/START/DOWN to find the advancing button.
+20:START
+100:A
+108:START
+118:A
+126:DOWN
+132:A
+140:START
+146:A
+154:DOWN
+160:A
+168:START
+174:A
+182:DOWN
+188:A
+196:START
+202:A
+210:DOWN
+216:A

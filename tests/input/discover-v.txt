@@ -1,0 +1,20 @@
+# Probe: P1 Samoa Joe vs P2 default AJ Styles, then accept.
+20:START
+100:A
+108:START
+120:A
+160:A
+175:DOWN
+182:RIGHT
+189:RIGHT
+196:A
+203:DOWN
+210:A
+217:A
+224:A
+232:START
+240:A
+248:A
+256:A
+264:A
+272:A

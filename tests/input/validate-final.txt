@@ -1,0 +1,13 @@
+# Validate the corrected final menu path from the attract loop.
+230:A
+245:START
+265:A
+280:A
+295:DOWN
+302:RIGHT
+309:RIGHT
+316:A
+328:DOWN
+336:A
+344:A
+356:A
