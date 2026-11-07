@@ -66,6 +66,8 @@ def main():
         else:
             logo = remove_white(src)
         logo.save(hub / "logo.png", optimize=True)
+        for spare in ("logo_original.png", "logo_tna_cutout.png"):  # (cut from the disc: never ship)
+            (hub / spare).unlink(missing_ok=True)
         print("logo", logo.size)
     if (p := find("icon_src")):
         icon = cover(Image.open(p).convert("RGB"), 512, 512)
@@ -79,6 +81,7 @@ def main():
         bg.resize((1920, 1080), Image.LANCZOS).save(LOCAL / "pic1.png", optimize=True)
         for n in ("pic0", "pic1", "pic2"):
             write_dds_bc7(bg, LOCAL / (n + ".dds"))
+        bg.save(hub / "hero.jpg", quality=92)  # (the hub backdrop: your art, not the disc's)
         print("background 3840x2160")
 
 
